@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import matplotlib
+import matplotlib.font_manager as fm # <- 추가
 
 app = Flask(__name__)
 
@@ -16,8 +17,24 @@ if not os.path.exists(CHART_IMAGE_FOLDER):
     os.makedirs(CHART_IMAGE_FOLDER)
 app.config['CHART_IMAGE_FOLDER'] = CHART_IMAGE_FOLDER
 
-plt.rcParams['font.family'] = 'Malgun Gothic'
+# --- 폰트 설정 부분 수정 (여기만 변경하면 됩니다) ---
+# 폰트 파일 경로 지정: Flask 앱의 루트 경로를 기준으로 static/fonts 폴더 내 폰트 파일 지정
+FONT_PATH = os.path.join(app.root_path, 'static', 'fonts', 'NanumGothic.ttf')
+
+# 폰트 매니저에 폰트 추가 및 설정
+if os.path.exists(FONT_PATH):
+    fm.fontManager.addfont(FONT_PATH)
+    plt.rcParams['font.family'] = 'NanumGothic' # 폰트 파일명에서 확장자를 제외한 이름 (폰트 속성 이름)
+    print(f"DEBUG: Matplotlib font set to NanumGothic from {FONT_PATH}")
+else:
+    print(f"WARNING: NanumGothic.ttf not found at {FONT_PATH}. Hanja/Hangul may not display correctly.")
+    # 대체 폰트 또는 기본 폰트 사용 (한글 깨질 가능성 높음)
+    plt.rcParams['font.family'] = 'sans-serif' 
+
 plt.rcParams['axes.unicode_minus'] = False
+# --- 폰트 설정 부분 수정 끝 ---
+
+# ... (나머지 app.py 코드는 동일) ...
 
 
 def plot_ohlcv_chart(df, stock_name, image_filename):
