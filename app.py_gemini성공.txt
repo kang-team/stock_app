@@ -1,0 +1,43 @@
+import os
+import datetime
+from flask import Flask, render_template
+from pykrx.stock import get_market_ohlcv_by_date # 이 임포트만 사용합니다!
+
+# 이제 from pykrx.tools import get_nearest_business_day_in_weekend 라인은 완전히 삭제합니다.
+
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    today_dt = datetime.datetime.today() # 오늘 날짜 객체
+    actual_trade_date_dt = None # 실제 거래일 날짜 객체를 저장할 변수 (초기화)
+    df = None # 데이터프레임을 초기화
+
+    # 오늘부터 과거로 최대 7일까지 역순으로 찾아봅니다.
+    # 일반적으로 주말 포함 2~3일이면 충분하지만, 혹시 모를 공휴일까지 대비해 넉넉히 설정
+    for i in range(7):
+        current_date_dt = today_dt - datetime.timedelta(days=i) # 오늘부터 하루씩 빼면서 날짜 확인
+        current_date_str = current_date_dt.strftime("%Y%m%d") # YYYYMMDD 형식 문자열
+
+        # 현재 날짜의 주가 데이터를 시도
+        df = get_market_ohlcv_by_date(current_date_str, current_date_str, "003230")
+
+        if not df.empty: # 데이터프레임이 비어있지 않다면 (즉, 주가 데이터를 찾았다면)
+            actual_trade_date_dt = current_date_dt # 이 날짜가 우리가 찾던 실제 거래일
+            break # 데이터를 찾았으니 루프 종료
+
+    price_message = "주가 정보를 가져올 수 없습니다. (최근 7일간 데이터 없음)"
+    display_date = "알 수 없음"
+
+    if actual_trade_date_dt: # 실제 거래일을 찾았으면 (None이 아니면)
+        display_date = actual_trade_date_dt.strftime("%Y년 %m월 %d일")
+        # df는 위 루프 안에서 데이터를 찾았을 때 이미 채워져 있을 것입니다.
+        current_price = df['종가'].iloc[0]
+        price_message = f"{display_date} 삼양식품 종가: {current_price:,}원"
+    # else 문은 위에 price_message 초기화로 대체됩니다.
+
+    return render_template("index.html", message=price_message)
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host="0.0.0.0", port=port, debug=True)

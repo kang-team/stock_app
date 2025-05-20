@@ -1,0 +1,22 @@
+from flask import Flask, render_template
+from pykrx.stock import stock
+import datetime
+import os
+
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    today = datetime.datetime.today().strftime("%Y%m%d")
+    df = stock.get_market_ohlcv_by_date(today, today, "003230")  # 삼양식품 종목코드
+
+    if df.empty:
+        price = "장 마감 또는 휴장일입니다."
+    else:
+        price = f"{df['종가'].iloc[0]:,}원"
+
+    return render_template("index.html", message=f"삼양식품 현재가: {price}")
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host="0.0.0.0", port=port)

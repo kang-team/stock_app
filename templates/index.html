@@ -3,9 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flask Hello App</title>
+    <title>삼양식품 주가 정보</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; margin-top: 50px; }
+        h1 { font-size: 2.5em; color: #333; }
+        .price-info { font-size: 1.8em; margin-top: 20px; }
+        .change-info { font-size: 1.2em; margin-top: 10px; }
+        .red { color: #d90000; } /* 상승 시 빨간색 */
+        .blue { color: #0000d9; } /* 하락 시 파란색 */
+        .chart-container { margin-top: 30px; }
+        .chart-container img { max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 20px; } /* 이미지 하단 여백 추가 */
+    </style>
 </head>
 <body>
-    <h1>{{ message }}</h1>
+    <h1 class="price-info">{{ message | safe }}</h1>
+    <p class="change-info">{{ change_info | safe }}</p>
+
+
+
+    {# 일주일간 종가 선 그래프 #}
+    {% if chart_weekly_image_url %}
+    <div class="chart-container">
+        <h2>최근 7거래일 종가 추이</h2>
+        <img src="{{ chart_weekly_image_url }}" alt="삼양식품 7거래일 종가 선 그래프">
+    </div>
+    {% endif %}
+
+
+    {# 2일 캔들 차트 #}
+    {% if chart_2day_image_url %}
+    <div class="chart-container">
+        <h2>최근 2일 캔들 차트</h2>
+        <img src="{{ chart_2day_image_url }}" alt="삼양식품 2일 캔들 차트">
+    </div>
+    {% endif %}
 </body>
 </html>

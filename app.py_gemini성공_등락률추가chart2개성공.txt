@@ -5,31 +5,48 @@ from pykrx.stock import get_market_ohlcv_by_date
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import matplotlib
+import matplotlib # Matplotlib 백엔드 설정을 위해 추가
 
+# Flask 웹 앱 인스턴스 생성
 app = Flask(__name__)
 
+# Matplotlib 백엔드 설정 (웹 서버 환경에서 그림 파일로 저장할 때 필요)
 matplotlib.use('Agg')
 
+# 이미지 파일을 저장할 경로 설정 (Flask의 static 폴더 안에 images 폴더)
 CHART_IMAGE_FOLDER = os.path.join('static', 'images')
 if not os.path.exists(CHART_IMAGE_FOLDER):
     os.makedirs(CHART_IMAGE_FOLDER)
 app.config['CHART_IMAGE_FOLDER'] = CHART_IMAGE_FOLDER
 
-plt.rcParams['font.family'] = 'Malgun Gothic'
-plt.rcParams['axes.unicode_minus'] = False
+# 한글 폰트 설정 (Matplotlib에서 한글 깨짐 방지)
+plt.rcParams['font.family'] = 'Malgun Gothic' # Windows 기준
+plt.rcParams['axes.unicode_minus'] = False # 마이너스 기호 깨짐 방지
 
 
 def plot_ohlcv_chart(df, stock_name, image_filename):
+    """
+    OHLCV 데이터를 받아 간단한 캔들 차트를 생성하고 이미지로 저장합니다.
+    df: get_market_ohlcv_by_date로 얻은 DataFrame
+    stock_name: 종목명 (차트 제목용)
+    image_filename: 저장할 이미지 파일명
+    """
+    
+    # 데이터가 부족하면 차트를 그릴 수 없음
     if len(df) < 2:
         print(f"차트를 그릴 데이터가 부족합니다 (최소 2일 필요): {stock_name}")
         return False
 
+    # 인덱스를 날짜 형식으로 변환하여 시각화에 용이하게 함
     df.index = pd.to_datetime(df.index)
 
+    # 캔들 차트 그리기 (금일 데이터와 전일 데이터만 강조)
     fig, ax = plt.subplots(figsize=(8, 5))
     
+    # 마지막 두 거래일 데이터 추출
     last_two_days = df.tail(2)
+    
+    # x축 위치 설정 (matplotlib 인덱스 기반)
     x_positions = np.arange(len(last_two_days))
 
     for i, row in last_two_days.iterrows():
@@ -40,43 +57,57 @@ def plot_ohlcv_chart(df, stock_name, image_filename):
         
         x_pos = x_positions[last_two_days.index.get_loc(i)]
 
+        # 캔들 몸통 (시가와 종가 사이)
         if close_p >= open_p:
-            color = 'red'
+            color = 'red' # 양봉
             ax.vlines(x_pos, open_p, close_p, color=color, linewidth=5)
         else:
-            color = 'blue'
+            color = 'blue' # 음봉
             ax.vlines(x_pos, close_p, open_p, color=color, linewidth=5)
         
+        # 캔들 꼬리 (고가와 저가 사이)
         ax.vlines(x_pos, low_p, high_p, color=color)
 
+    # x축 라벨 설정
     ax.set_xticks(x_positions)
     ax.set_xticklabels([d.strftime('%m-%d') for d in last_two_days.index])
     
-    ax.set_title(f'{stock_name} 최근 2일 캔들 주가', fontsize=16)
+    ax.set_title(f'{stock_name} 최근 2일 캔들 주가', fontsize=16) # 제목 변경
     ax.set_ylabel('가격 (원)', fontsize=12)
     ax.grid(True, axis='y', linestyle='--', alpha=0.7)
     
+    # y축 라벨을 숫자에 콤마 찍히도록 설정
     ax.ticklabel_format(axis='y', style='plain', useOffset=False, useLocale=True)
     ax.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, p: format(int(x), ',')))
 
     plt.tight_layout()
     image_path = os.path.join(app.config['CHART_IMAGE_FOLDER'], image_filename)
     plt.savefig(image_path)
-    plt.close(fig)
+    plt.close(fig) # 메모리 해제
     return True
 
+# --- 새로운 함수: 일주일간 종가 선 그래프 그리기 ---
 def plot_weekly_line_chart(df, stock_name, image_filename):
+    """
+    일주일간의 종가 데이터를 받아 선 그래프를 생성하고 이미지로 저장합니다.
+    df: get_market_ohlcv_by_date로 얻은 DataFrame (여러 날짜 포함)
+    stock_name: 종목명 (차트 제목용)
+    image_filename: 저장할 이미지 파일명
+    """
+    # 데이터가 부족하면 차트를 그릴 수 없음 (최소 1일 필요)
     if df.empty:
         print(f"일주일 종가 선 그래프를 그릴 데이터가 없습니다: {stock_name}")
         return False
 
-    df_plot = df.copy()
-    df_plot.index = pd.to_datetime(df_plot.index)
+    df_plot = df.copy() # 원본 데이터프레임 손상 방지를 위해 복사
+    df_plot.index = pd.to_datetime(df_plot.index) # 인덱스를 날짜 형식으로 변환
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(10, 5)) # 차트 크기 설정
     
+    # 종가 데이터만 추출하여 선 그래프 그리기
     ax.plot(df_plot.index, df_plot['종가'], marker='o', linestyle='-', color='green', linewidth=2)
 
+    # x축 라벨 설정 (날짜 포맷)
     ax.set_xticks(df_plot.index)
     ax.set_xticklabels([d.strftime('%m-%d') for d in df_plot.index], rotation=45, ha='right')
 
@@ -84,87 +115,64 @@ def plot_weekly_line_chart(df, stock_name, image_filename):
     ax.set_ylabel('종가 (원)', fontsize=12)
     ax.grid(True, linestyle='--', alpha=0.7)
 
+    # y축 라벨을 숫자에 콤마 찍히도록 설정
     ax.ticklabel_format(axis='y', style='plain', useOffset=False, useLocale=True)
     ax.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, p: format(int(x), ',')))
 
-    plt.tight_layout()
+    plt.tight_layout() # 라벨이 잘리지 않도록 조정
     image_path = os.path.join(app.config['CHART_IMAGE_FOLDER'], image_filename)
     plt.savefig(image_path)
     plt.close(fig)
     return True
+# --- 새로운 함수 끝 ---
 
 
 @app.route("/")
 def home():
-    now_kst = datetime.datetime.now() # 현재 시간 (한국 시간으로 가정)
+    today_dt = datetime.datetime.today()
     
-    # 한국 주식 시장 개장 시간 (평일 오전 9시 ~ 오후 3시 30분)
-    market_open_time = now_kst.replace(hour=9, minute=0, second=0, microsecond=0)
-    market_close_time = now_kst.replace(hour=15, minute=30, second=0, microsecond=0)
-
-    is_trading_day = True
-    # 주말 (토=5, 일=6) 확인
-    if now_kst.weekday() in [5, 6]: 
-        is_trading_day = False
-    
-    # 공휴일은 pykrx가 내부적으로 처리하므로 별도 판단 로직은 넣지 않음.
-    # pykrx가 데이터를 못 가져오면 자동으로 이전 영업일 데이터를 가져오게 됨.
-
-
     price_message = "주가 정보를 가져올 수 없습니다."
     change_info = ""
     display_date = "알 수 없음"
-    chart_2day_image_url = None
-    chart_weekly_image_url = None
+    chart_2day_image_url = None # 2일 캔들 차트 URL
+    chart_weekly_image_url = None # 주간 선 그래프 URL
 
     current_price = None
     daily_change = 0
     change_rate = 0.0
 
-    start_date_for_ohlcv = (now_kst - datetime.timedelta(days=7)).strftime("%Y%m%d")
-    end_date_for_ohlcv = now_kst.strftime("%Y%m%d")
+    # 오늘 포함 최대 7일까지의 일별 데이터를 가져옵니다.
+    # 이렇게 하면 가장 최근 영업일과 그 이전 영업일 데이터를 모두 확보할 수 있습니다.
+    start_date_for_ohlcv = (today_dt - datetime.timedelta(days=7)).strftime("%Y%m%d")
+    end_date_for_ohlcv = today_dt.strftime("%Y%m%d")
 
     df_ohlcv_range = get_market_ohlcv_by_date(start_date_for_ohlcv, end_date_for_ohlcv, "003230")
 
     if not df_ohlcv_range.empty:
+        # 가장 최근 거래일의 데이터 (df의 마지막 행)
         latest_day_data = df_ohlcv_range.iloc[-1]
         
         actual_trade_date_dt = datetime.datetime.strptime(latest_day_data.name.strftime("%Y%m%d"), "%Y%m%d")
         display_date = actual_trade_date_dt.strftime("%Y년 %m월 %d일")
-        current_price = int(latest_day_data['종가'])
+        current_price = int(latest_day_data['종가']) # 가장 최근 종가 (정수형)
 
-        if len(df_ohlcv_range) >= 2:
+        # 전일 종가 계산을 위한 데이터
+        if len(df_ohlcv_range) >= 2: # 최소 2일치 데이터가 있어야 전일 종가 비교 가능
             previous_day_data = df_ohlcv_range.iloc[-2]
             previous_day_price = int(previous_day_data['종가'])
             
-            daily_change = current_price - previous_day_price
+            daily_change = current_price - previous_day_price # 전일 대비 가격 (등락액)
             
-            if previous_day_price != 0:
+            if previous_day_price != 0: # 0으로 나누는 것 방지
                 change_rate = (daily_change / previous_day_price) * 100
             else:
                 change_rate = 0.0
         else:
             daily_change = 0
             change_rate = 0.0
+            price_message = f"{display_date} 종가: {current_price:,}원 (전일 정보 없음)"
 
-        # --- 메시지 생성 로직 변경 ---
-        price_type_text = "종가" # 기본값은 종가
-
-        # 1. 오늘이 영업일이고, 장이 열려있는 시간이라면 "현재가"로 표시
-        #    단, pykrx가 오늘 날짜 데이터를 가져왔을 때만 해당 (ex. 공휴일인데 장중시간이면 제외)
-        if is_trading_day and \
-           market_open_time <= now_kst <= market_close_time and \
-           actual_trade_date_dt.date() == now_kst.date():
-            price_type_text = "현재가"
-        # 2. 장 마감 후이거나, 주말/공휴일인데 가장 최신 데이터가 오늘 날짜이면 "종가"
-        elif actual_trade_date_dt.date() == now_kst.date():
-             price_type_text = "종가"
-        # 3. 그 외 (주말/공휴일인데 가장 최신 데이터가 어제 날짜인 경우)
-        else:
-            price_type_text = "종가" # 이 경우는 이전 영업일의 종가
-
-        price_message = f"{display_date} {price_type_text}: {current_price:,}원"
-        # --- 메시지 생성 로직 변경 끝 ---
+        price_message = f"{display_date} 종가: {current_price:,}원"
         
         if len(df_ohlcv_range) >= 2:
             change_sign = ""
@@ -180,19 +188,24 @@ def home():
         else:
             change_info = "<br><span>전일 대비 정보 없음</span>"
         
-        chart_2day_filename = 'samyang_stock_2day_chart.png'
+        # --- 차트 생성 및 저장 ---
+        # 2일 캔들 차트 생성
+        chart_2day_filename = 'samyang_stock_2day_chart.png' # 파일명 변경
         if plot_ohlcv_chart(df_ohlcv_range, '삼양식품', chart_2day_filename):
             chart_2day_image_url = url_for('static', filename=os.path.join('images', chart_2day_filename).replace('\\', '/'))
         
-        chart_weekly_filename = 'samyang_stock_weekly_line_chart.png'
+        # 일주일간 종가 선 그래프 생성
+        chart_weekly_filename = 'samyang_stock_weekly_line_chart.png' # 새로운 파일명
         if plot_weekly_line_chart(df_ohlcv_range, '삼양식품', chart_weekly_filename):
             chart_weekly_image_url = url_for('static', filename=os.path.join('images', chart_weekly_filename).replace('\\', '/'))
+        # --- 차트 생성 및 저장 끝 ---
 
+    # 템플릿에 두 개의 차트 URL 전달
     return render_template("index.html", 
                            message=price_message, 
                            change_info=change_info, 
-                           chart_2day_image_url=chart_2day_image_url,
-                           chart_weekly_image_url=chart_weekly_image_url)
+                           chart_2day_image_url=chart_2day_image_url, # 2일 캔들 차트 URL
+                           chart_weekly_image_url=chart_weekly_image_url) # 주간 선 그래프 URL
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
